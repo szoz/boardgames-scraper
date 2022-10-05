@@ -1,7 +1,10 @@
 from requests_html import HTMLSession, HTML, Element
+import boto3
 from typing import List
-from json import dump
+from json import dump, dumps
 from datetime import date
+
+FILE_NAME = f'results_top_{date.today().isoformat()}.json'
 
 
 class Game:
@@ -39,14 +42,29 @@ def scrape_data(max_page: int = 10) -> List[dict]:
 
 def dump_data(payload: List[dict]) -> None:
     """Save given payload into JSON file."""
-    with open(f'results_top_{date.today().isoformat()}.json', 'w') as f:
+    with open(FILE_NAME, 'w') as f:
         dump(payload, f, indent=4, ensure_ascii=False)
 
 
+def dump_data_s3(payload: List[dict]) -> None:
+    """Save given payload into AWS S3 bucket."""
+    payload_dump = dumps(payload, indent=4, ensure_ascii=False).encode("utf-8")
+
+    bucket_name = "bg-scraper-bucket"
+    s3 = boto3.resource('s3')
+    s3.Bucket(bucket_name).put_object(Key=FILE_NAME, Body=payload_dump)
+
+
 def main() -> None:
-    """Main function."""
+    """Main function for local execution."""
     results = scrape_data()
     dump_data(results)
+
+
+def lambda_handler(event: dict, context: 'LambdaContext') -> None:
+    """Main lambda function."""
+    results = scrape_data()
+    dump_data_s3(results)
 
 
 if __name__ == '__main__':
